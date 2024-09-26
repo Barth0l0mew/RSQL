@@ -1,0 +1,200 @@
+ChatGPT (18:38:47): Для реализации ситуации, когда у вас есть сущности `Product` и `Category` с двунаправленной связью `ManyToMany` в Spring Boot, используя Hibernate и JPA, вам нужно создать соответствующие классы сущностей, репозитории, сервисы и контроллеры. Ниже приведен пример реализации этой логики.
+
+**1. Сущности**
+
+java
+import javax.persistence.*;
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+public class Product {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String title;
+    private double price;
+
+    @ManyToMany(mappedBy = "products", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    private Set<Category> categories = new HashSet<>();
+
+    // Getters and Setters
+}
+
+@Entity
+public class Category {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String title;
+
+    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+        name = "product_category",
+        joinColumns = @JoinColumn(name = "category_id"),
+        inverseJoinColumns = @JoinColumn(name = "product_id")
+    )
+    private Set<Product> products = new HashSet<>();
+
+    // Getters and Setters
+}
+
+
+**2. Репозитории**
+
+java
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ProductRepository extends JpaRepository<Product, Long> {
+}
+
+public interface CategoryRepository extends JpaRepository<Category, Long> {
+}
+
+
+**3. Сервисы**
+
+java
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import javax.transaction.Transactional;
+
+@Service
+public class ProductService {
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Transactional
+    public void deleteProduct(Long productId) {
+        productRepository.deleteById(productId);
+    }
+}
+
+@Service
+public class CategoryService {
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Transactional
+    public void deleteCategory(Long categoryId) {
+        Category category = categoryRepository.findById(categoryId).orElseThrow(() -> new RuntimeException("Category not found"));
+
+        // Удаляем категорию из всех продуктов
+        for (Product product : category.getProducts()) {
+            product.getCategories().remove(category);
+        }
+
+        // Теперь удаляем категорию
+        categoryRepository.delete(category);
+    }
+}
+
+
+**4. Контроллеры**
+
+java
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.ui.ModelMap;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+@Controller
+@RequestMapping("/products")
+public class ProductController {
+    @Autowired
+    private ProductService productService;
+
+    @GetMapping("/delete/{id}")
+    public String deleteProduct(@PathVariable("id") Long id) {
+        productService.deleteProduct(id);
+        return "redirect:/products/";
+    }
+}
+
+@Controller
+@RequestMapping("/categories")
+public class CategoryController {
+    @Autowired
+    private CategoryService categoryService;
+
+    @GetMapping("/delete/{id}")
+    public String deleteCategory(@PathVariable("id") Long id) {
+        categoryService.deleteCategory(id);
+        return "redirect:/categories/";
+    }
+}
+
+
+**5. Шаблоны Thymeleaf**
+
+Пример простого шаблона для отображения списка продуктов и категорий может выглядеть так:
+
+`products.html`
+
+html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Products</title>
+</head>
+<body>
+<h1>Products</h1>
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Price</th>
+        <th>Action</th>
+    </tr>
+    <tr th:each="product : ${products}">
+        <td th:text="${product.id}"></td>
+        <td th:text="${product.title}"></td>
+        <td th:text="${product.price}"></td>
+        <td><a th:href="@{/products/delete/{id}(id=${product.id})}">Delete</a></td>
+    </tr>
+</table>
+</body>
+</html>
+
+
+`categories.html`
+
+html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Categories</title>
+</head>
+<body>
+<h1>Categories</h1>
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Action</th>
+    </tr>
+    <tr th:each="category : ${categories}">
+        <td th:text="${category.id}"></td>
+        <td th:text="${category.title}"></td>
+        <td><a th:href="@{/categories/delete/{id}(id=${category.id})}">Delete</a></td>
+    </tr>
+</table>
+</body>
+</html>
+
+
+**6. Примечания**
+
+1. Пример выше реализует основную функциональность для добавления, удаления продуктов и категорий, но не включает в себя функциональность создания и обновления.
+2. Убедитесь, что в проекте настроена конфигурация Spring Boot и зависимости для Spring Data JPA и Thymeleaf.
+3. Не забудьте добавить обработку исключений для более удобного пользовательского интерфейса, а также обработку прав доступа на удаление.
+4. Вы можете сделать классы сервисов более гибкими, добавив методы для их обновления и создания.КопироватьПоделиться с друзьями
