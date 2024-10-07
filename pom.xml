@@ -10,6 +10,8 @@
     <packaging>pom</packaging>
     <modules>
         <module>Spring-RSQL</module>
+        <module>flux</module>
+        <module>foo</module>
     </modules>
 
     <properties>
